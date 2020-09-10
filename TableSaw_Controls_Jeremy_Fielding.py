@@ -26,57 +26,117 @@ angle_frame.grid(row=0, column=2, sticky=N, padx=5, pady=10)
 height_frame = LabelFrame(root, text="Blade Height", padx=x_pad_frame, pady=20)
 height_frame.grid(row=0, column=3, sticky=N, padx=5, pady=10)
 
-GPIO.setwarnings(False)
-
 # setup pins
 # Fence position outputs
-DIR_f = 000  # Direction GPIO Pin for Fence
-STEP_f = 000  # Step GPIO Pin
 MAX_f = 99  # this is the dimension that should be displayed when the fence is on the max limit sensor
 MIN_f = 0  # this is the dimension that should be displayed when the fence is on the min limit sensor
-CW_f = 0  # Clockwise Rotation
-CCW_f = 1  # Counterclockwise Rotation
 # blade Angle outputs
-DIR_a = 000  # Direction GPIO Pin
-STEP_a = 0000  # Step GPIO Pin
 MAX_a = 99
 MIN_a = 0
-CW_a = 0  # Clockwise Rotation
-CCW_a = 1  # Counterclockwise Rotation
 # blade height outputs
-DIR_h = 000  # Direction GPIO Pin
-STEP_h = 000  # Step GPIO Pin
 MAX_h = 99
 MIN_h = 0
-CW_h = 0  # Clockwise Rotation
-CCW_h = 1  # Counterclockwise Rotation
 
-# Sensor inputs
-fence_zero = 00  # GPIO Pin
-fence_end = 00  # fence end of travel right side of blade
-# fence_end_negative_position = 000  # fence end of travel negative if setup for other side of blade
-blade_height_zero = 0
-blade_height_end = 99
-blade_angle_0 = 0
-blade_angle_45 = 99
-# emergency_stop = 22    # emergency_stop input stops all movement
 
-# defining speed for motors
-# Fence
-RPM_f = 500
-steps_per_revolution_f = 400
-fdelay = 1 / ((RPM_f * steps_per_revolution_f) / 60)
-stp_per_inch_f = 129.912814
-# blade angle
-RPM_a = 400
-steps_per_revolution_a = 400
-adelay = 1 / ((RPM_a * steps_per_revolution_a) / 60)
-stp_per_inch_a = 147.853
-# blade height
-RPM_h = 900
-steps_per_revolution_h = 400
-hdelay = 1 / ((RPM_h * steps_per_revolution_h) / 60)
-stp_per_inch_h = 6080
+class EndstopHit(Exception):
+    MAX = "max"
+    MIN = "min"
+
+    def __init__(self, endstop):
+        self.endstop = endstop
+
+
+class StepperMotor(object):
+    def __init__(self,
+                 direction_pin,
+                 step_pin,
+                 steps_per_inch,
+                 rotations_per_minute,
+                 steps_per_revolution=400,
+                 minimum_input_pin=None,
+                 maximum_input_pin=None,
+                 invert=False):
+        self._direction_pin = direction_pin
+        self._step_pin = step_pin
+        self._steps_per_inch = steps_per_inch
+        self._rotations_per_minute = rotations_per_minute
+        self._steps_per_revolution = steps_per_revolution
+        self._minimum_input_pin = minimum_input_pin
+        self._maximum_input_pin = maximum_input_pin
+        self._current_position = 0
+        self._clockwise_state = 0 if invert else 1
+        self._counterclockwise_state = 1 if invert else 0
+
+    @property
+    def current_position(self):
+        return self._current_position
+
+    @current_position.setter
+    def current_position(self, value):
+        self._current_position = value
+
+    def setup(self):
+        GPIO.setup(self._direction_pin, GPIO.OUT)
+        GPIO.setup(self._step_pin, GPIO.OUT)
+        if self._minimum_input_pin is not None:
+            GPIO.setup(self._minimum_input_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        if self._maximum_input_pin is not None:
+            GPIO.setup(self._maximum_input_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+    def move_to(self, new_position):
+        new_position = float(new_position)
+        if self._current_position < new_position:
+            GPIO.output(self._direction_pin, self._clockwise_state)
+            endstop_to_check = self._maximum_input_pin
+            endstop_exception = EndstopHit(EndstopHit.MAX)
+        elif self._current_position > new_position:
+            GPIO.output(self._direction_pin, self._counterclockwise_state)
+            endstop_to_check = self._maximum_input_pin
+            endstop_exception = EndstopHit(EndstopHit.MIN)
+        else:
+            return  # We're already where we need to be
+
+        distance_to_move = abs(new_position - self._current_position)
+        steps_to_move = int(self._steps_per_inch * float(distance_to_move))
+
+        delay = 1 / ((self._rotations_per_minute * self._steps_per_revolution) / 60)
+
+        for step in range(steps_to_move):
+            if endstop_to_check is not None and GPIO.input(endstop_to_check):
+                raise endstop_exception
+
+            GPIO.output(self._step_pin, GPIO.HIGH)
+            sleep(delay / 2)
+            GPIO.output(self._step_pin, GPIO.LOW)
+            sleep(delay / 2)
+
+
+fence_stepper_motor = StepperMotor(
+    direction_pin=000,
+    step_pin=000,
+    steps_per_inch=129.912814,
+    rotations_per_minute=500,
+    minimum_input_pin=00,
+    maximum_input_pin=99
+)
+
+blade_angle_stepper_motor = StepperMotor(
+    direction_pin=000,
+    step_pin=000,
+    steps_per_inch=147.853,
+    rotations_per_minute=400,
+    minimum_input_pin=00,
+    maximum_input_pin=99
+)
+
+blade_height_stepper_motor = StepperMotor(
+    direction_pin=000,
+    step_pin=000,
+    steps_per_inch=6080,
+    rotations_per_minute=900,
+    minimum_input_pin=00,
+    maximum_input_pin=99
+)
 
 # Entry panels and locations
 cal = Entry(calculator_frame, width=10, borderwidth=5)
@@ -182,176 +242,38 @@ def button_divide():
 
 
 # Move motors
+def move(stepper_motor, new_position_entry, current_position_entry, min_value, max_value):
+    # setup variables
+    new_position = float(new_position_entry.get())
+
+    # task to complete first
+    new_position_entry.delete(0, END)
+
+    try:
+        stepper_motor.move_to(new_position)
+        current_position_entry.delete(0, END)
+        current_position_entry.insert(0, str(new_position))
+    except EndstopHit as e:
+        if e.endstop == EndstopHit.MAX:
+            current_position_entry.delete(0, END)
+            current_position_entry.insert(0, str(max_value))
+        elif e.endstop == EndstopHit.MIN:
+            current_position_entry.delete(0, END)
+            current_position_entry.insert(0, str(min_value))
+        else:
+            raise
+
 
 def move_fence():
-    # setup variables
-    global Current_fence_position
-    Startposition = Current_fence_position.get()
-    new_position = float(fen.get())
-
-    # task to complete first
-    fen.delete(0, END)
-    GPIO.setmode(GPIO.BOARD)
-    GPIO.setup(DIR_f, GPIO.OUT)
-    GPIO.setup(STEP_f, GPIO.OUT)
-    GPIO.setup(fence_zero, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(fence_end, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    # GPIO.setup(emergency_stop, GPIO.IN)
-
-    if float(Startposition) < float(new_position):
-        dis_to_move = float(new_position) - float(Startposition)
-
-        move_fence_steps = int(stp_per_inch_f * float(dis_to_move))
-
-        for steps in range(move_fence_steps):
-            if GPIO.input(fence_end) == True:
-                Current_fence_position.delete(0, END)
-                Current_fence_position.insert(0, str(MAX_f))
-                break
-            GPIO.output(DIR_f, CW_f)
-            GPIO.output(STEP_f, GPIO.HIGH)
-            sleep(fdelay)
-            GPIO.output(STEP_f, GPIO.LOW)
-            sleep(fdelay)
-            Current_fence_position.delete(0, END)
-            Current_fence_position.insert(0, str(new_position))
-
-    elif float(Startposition) > float(new_position):
-        dis_to_move = float(Startposition) - float(new_position)
-
-        move_fence_steps = int(stp_per_inch_f * float(dis_to_move))
-        for steps in range(move_fence_steps):
-            if GPIO.input(fence_zero) == True:
-                Current_fence_position.delete(0, END)
-                Current_fence_position.insert(0, str(MIN_f))
-                break
-            GPIO.output(DIR_f, CCW_f)
-            GPIO.output(STEP_f, GPIO.HIGH)
-            sleep(fdelay)
-            GPIO.output(STEP_f, GPIO.LOW)
-            sleep(fdelay)
-            Current_fence_position.delete(0, END)
-            Current_fence_position.insert(0, str(new_position))
-    elif Startposition == new_position:
-        return
-
-    # reset things for next function
-    GPIO.cleanup()
+    move(fence_stepper_motor, fen, Current_fence_position, MIN_f, MAX_f)
 
 
-def change_angle():
-    # setup variables
-    global ang
-    Startposition = C_angle_e.get()
-    new_position = float(ang.get())
-
-    # task to complete first
-    ang.delete(0, END)
-    GPIO.setmode(GPIO.BOARD)
-    GPIO.setup(DIR_a, GPIO.OUT)
-    GPIO.setup(STEP_a, GPIO.OUT)
-    GPIO.setup(blade_angle_0, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(blade_angle_45, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-
-    if float(Startposition) < float(new_position):
-        dis_to_move = float(new_position) - float(Startposition)
-
-        move_angle_steps = int(stp_per_inch_a * float(dis_to_move))
-
-        for steps in range(move_angle_steps):
-            if GPIO.input(blade_angle_45) == True:
-                C_angle_e.delete(0, END)
-                C_angle_e.insert(0, str(MIN_a))
-                break
-            GPIO.output(DIR_a, CW_a)
-            GPIO.output(STEP_a, GPIO.HIGH)
-            sleep(adelay)
-            GPIO.output(STEP_a, GPIO.LOW)
-            sleep(adelay)
-            C_angle_e.delete(0, END)
-            C_angle_e.insert(0, str(new_position))
-
-    elif float(Startposition) > float(new_position):
-        dis_to_move = float(Startposition) - float(new_position)
-
-        move_angle_steps = int(stp_per_inch_a * float(dis_to_move))
-        for steps in range(move_angle_steps):
-            if GPIO.input(blade_angle_0) == True:
-                C_angle_e.delete(0, END)
-                C_angle_e.insert(0, str(MAX_a))
-                break
-            GPIO.output(DIR_a, CCW_a)
-            GPIO.output(STEP_a, GPIO.HIGH)
-            sleep(adelay)
-            GPIO.output(STEP_a, GPIO.LOW)
-            sleep(adelay)
-            C_angle_e.delete(0, END)
-            C_angle_e.insert(0, str(new_position))
-
-    elif Startposition == new_position:
-        return
-
-    # reset things for next function
-    GPIO.cleanup()
-    # C_angle_e.delete(0,END)
-    # C_angle_e.insert(0, str(new_position))
+def move_blade_angle():
+    move(blade_angle_stepper_motor, ang, C_angle_e, MIN_a, MAX_a)
 
 
-def move_blade():
-    # setup variables
-    global C_height_e
-    Startposition = C_height_e.get()
-    new_position = float(height.get())
-
-    # task to complete first
-    height.delete(0, END)
-    GPIO.setmode(GPIO.BOARD)
-    GPIO.setup(DIR_h, GPIO.OUT)
-    GPIO.setup(STEP_h, GPIO.OUT)
-    GPIO.setup(blade_height_zero, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(blade_height_end, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-
-    if float(Startposition) < float(new_position):
-        dis_to_move = float(new_position) - float(Startposition)
-
-        move_height_steps = int(stp_per_inch_h * float(dis_to_move))
-
-        for steps in range(move_height_steps):
-            if GPIO.input(blade_height_end) == True:
-                C_height_e.delete(0, END)
-                C_height_e.insert(0, str(MAX_h))
-                break
-            GPIO.output(DIR_h, CW_h)
-            GPIO.output(STEP_h, GPIO.HIGH)
-            sleep(hdelay)
-            GPIO.output(STEP_h, GPIO.LOW)
-            sleep(hdelay)
-            C_height_e.delete(0, END)
-            C_height_e.insert(0, str(new_position))
-
-    elif float(Startposition) > float(new_position):
-        dis_to_move = float(Startposition) - float(new_position)
-
-        move_height_steps = int(stp_per_inch_h * float(dis_to_move))
-        for steps in range(move_height_steps):
-            if GPIO.input(blade_height_zero) == True:
-                C_height_e.delete(0, END)
-                C_height_e.insert(0, str(MIN_h))
-                break
-            GPIO.output(DIR_h, CCW_h)
-            GPIO.output(STEP_h, GPIO.HIGH)
-            sleep(hdelay)
-            GPIO.output(STEP_h, GPIO.LOW)
-            sleep(hdelay)
-            C_height_e.delete(0, END)
-            C_height_e.insert(0, str(new_position))
-
-    elif Startposition == new_position:
-        return
-
-    GPIO.cleanup()
-    # C_height_e.delete(0,END)
-    # C_height_e.insert(0, str(new_position))
+def move_blade_height():
+    move(blade_height_stepper_motor, height, C_height_e, MIN_h, MAX_h)
 
 
 def shortcut_a45():
@@ -408,6 +330,7 @@ def move_cal_to_angle():
     cal.delete(0, END)
     ang.delete(0, END)
     ang.insert(0, C_num)
+    blade_angle_stepper_motor.current_position = C_num
 
 
 def move_cal_to_height():
@@ -415,6 +338,7 @@ def move_cal_to_height():
     cal.delete(0, END)
     height.delete(0, END)
     height.insert(0, C_num)
+    blade_height_stepper_motor.current_position = C_num
 
 
 def move_cal_to_fence_reset():
@@ -422,6 +346,7 @@ def move_cal_to_fence_reset():
     cal.delete(0, END)
     Current_fence_position.delete(0, END)
     Current_fence_position.insert(0, C_num)
+    fence_stepper_motor.current_position = C_num
 
 
 def move_cal_to_angle_reset():
@@ -462,7 +387,8 @@ button_7 = Button(calculator_frame, text="7", padx=x_pad_nums, pady=y_pad_button
 button_8 = Button(calculator_frame, text="8", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(8))
 button_9 = Button(calculator_frame, text="9", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(9))
 button_0 = Button(calculator_frame, text="0", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(0))
-button_decimal = Button(calculator_frame, text=".", padx=x_pad_button, pady=y_pad_button, command=lambda: button_click("."))
+button_decimal = Button(calculator_frame, text=".", padx=x_pad_button, pady=y_pad_button,
+                        command=lambda: button_click("."))
 button_add = Button(calculator_frame, text="+", padx=x_pad_symbols, pady=y_pad_button, command=button_add)
 button_equal = Button(calculator_frame, text="=", padx=30, pady=y_pad_button, command=button_equal)
 button_clear = Button(calculator_frame, text="Clear", padx=20, pady=y_pad_button, command=button_clear)
@@ -476,16 +402,20 @@ mm_to_inch = Button(calculator_frame, text="mm to Inch", padx=x_pad_button, pady
 # Define Other Buttons
 
 button_movefence = Button(fence_frame, text="Move Fence", padx=x_pad_button, pady=y_pad_button, command=move_fence)
-button_change_angle = Button(angle_frame, text="Change Angle", padx=x_pad_button, pady=y_pad_button, command=change_angle)
-button_moveblade = Button(height_frame, text="Move blade", padx=x_pad_button, pady=y_pad_button, command=move_blade)
+button_change_angle = Button(angle_frame, text="Change Angle", padx=x_pad_button, pady=y_pad_button,
+                             command=move_blade_angle)
+button_moveblade = Button(height_frame, text="Move blade", padx=x_pad_button, pady=y_pad_button, command=move_blade_height)
 
-button_change_angle_45 = Button(angle_frame, text="Go To 45", padx=x_pad_button, pady=y_pad_button, command=shortcut_a45)
+button_change_angle_45 = Button(angle_frame, text="Go To 45", padx=x_pad_button, pady=y_pad_button,
+                                command=shortcut_a45)
 button_moveblade_0 = Button(height_frame, text="Go To 0", padx=x_pad_button, pady=y_pad_button, command=shortcut_h0)
 button_change_angle_0 = Button(angle_frame, text="Go To 0", padx=x_pad_button, pady=y_pad_button, command=shortcut_a0)
 button_moveblade_1 = Button(height_frame, text="Go To 1.0", padx=x_pad_button, pady=y_pad_button, command=shortcut_h1)
 
-cal_to_fen_but = Button(fence_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button, command=move_cal_to_fence)
-cal_to_ang_but = Button(angle_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button, command=move_cal_to_angle)
+cal_to_fen_but = Button(fence_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button,
+                        command=move_cal_to_fence)
+cal_to_ang_but = Button(angle_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button,
+                        command=move_cal_to_angle)
 cal_to_height_but = Button(height_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button,
                            command=move_cal_to_height)
 
@@ -547,4 +477,13 @@ clear_fen_but.grid(row=2, column=0)
 clear_ang_but.grid(row=2, column=0)
 clear_height_but.grid(row=2, column=0)
 
-root.mainloop()
+try:
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BOARD)
+    fence_stepper_motor.setup()
+    blade_angle_stepper_motor.setup()
+    blade_height_stepper_motor.setup()
+
+    root.mainloop()
+finally:
+    GPIO.cleanup()
