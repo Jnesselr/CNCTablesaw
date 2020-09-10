@@ -8,23 +8,23 @@ root = Tk()
 root.title("Table Saw Controls")
 
 # change the size of buttons and frames
-xpadframe = 0
-xpadbutton = 10
-xpadnums = 15
-xpadsymbols = 15
-ypadbutton = 10
+x_pad_frame = 0
+x_pad_button = 10
+x_pad_nums = 15
+x_pad_symbols = 15
+y_pad_button = 10
 
-calframe = LabelFrame(root, text="Calculator", padx=xpadframe, pady=20)
-calframe.grid(row=0, column=0, padx=5, pady=10)
+calculator_frame = LabelFrame(root, text="Calculator", padx=x_pad_frame, pady=20)
+calculator_frame.grid(row=0, column=0, padx=5, pady=10)
 
-fenceframe = LabelFrame(root, text="Fence", padx=xpadframe, pady=20)
-fenceframe.grid(row=0, column=1, sticky=N, padx=5, pady=10)
+fence_frame = LabelFrame(root, text="Fence", padx=x_pad_frame, pady=20)
+fence_frame.grid(row=0, column=1, sticky=N, padx=5, pady=10)
 
-angleframe = LabelFrame(root, text="Angle", padx=xpadframe, pady=20)
-angleframe.grid(row=0, column=2, sticky=N, padx=5, pady=10)
+angle_frame = LabelFrame(root, text="Angle", padx=x_pad_frame, pady=20)
+angle_frame.grid(row=0, column=2, sticky=N, padx=5, pady=10)
 
-heightframe = LabelFrame(root, text="Blade Height", padx=xpadframe, pady=20)
-heightframe.grid(row=0, column=3, sticky=N, padx=5, pady=10)
+height_frame = LabelFrame(root, text="Blade Height", padx=x_pad_frame, pady=20)
+height_frame.grid(row=0, column=3, sticky=N, padx=5, pady=10)
 
 GPIO.setwarnings(False)
 
@@ -52,14 +52,14 @@ CW_h = 0  # Clockwise Rotation
 CCW_h = 1  # Counterclockwise Rotation
 
 # Sensor inputs
-fencezero = 00  # GPIO Pin
-fenceendpos = 00  # fence end of travel right side of blade
-# fenceendnegative = 000  # fence end of travel negative if setup for other side of blade
-heightzero = 0
-heightend = 99
-angle0 = 0
-angle45 = 99
-# estop = 22    #estop input stops all movement
+fence_zero = 00  # GPIO Pin
+fence_end = 00  # fence end of travel right side of blade
+# fence_end_negative_position = 000  # fence end of travel negative if setup for other side of blade
+blade_height_zero = 0
+blade_height_end = 99
+blade_angle_0 = 0
+blade_angle_45 = 99
+# emergency_stop = 22    # emergency_stop input stops all movement
 
 # defining speed for motors
 # Fence
@@ -79,39 +79,39 @@ hdelay = 1 / ((RPM_h * steps_per_revolution_h) / 60)
 stp_per_inch_h = 6080
 
 # Entry panels and locations
-cal = Entry(calframe, width=10, borderwidth=5)
+cal = Entry(calculator_frame, width=10, borderwidth=5)
 cal.grid(row=0, column=0, columnspan=3, padx=0, pady=10)
 
-fen = Entry(fenceframe, width=10, borderwidth=5)
+fen = Entry(fence_frame, width=10, borderwidth=5)
 fen.grid(row=0, column=0, columnspan=2, padx=0, pady=10)
 fen.insert(0, 0)
 
-ang = Entry(angleframe, width=10, borderwidth=5)
+ang = Entry(angle_frame, width=10, borderwidth=5)
 ang.grid(row=0, column=0, columnspan=2, padx=0, pady=10)
 ang.insert(0, 0)
 
-height = Entry(heightframe, width=10, borderwidth=5)
+height = Entry(height_frame, width=10, borderwidth=5)
 height.grid(row=0, column=0, columnspan=2, padx=0, pady=10)
 height.insert(0, 0)
 
-C_fence_position = Label(fenceframe, text="Current Position = ", font=("Arial", 12))
+C_fence_position = Label(fence_frame, text="Current Position = ", font=("Arial", 12))
 C_fence_position.grid(row=3, column=0)
 
-Current_fence_position = Entry(fenceframe, width=7, borderwidth=2)
+Current_fence_position = Entry(fence_frame, width=7, borderwidth=2)
 Current_fence_position.grid(row=3, column=1)
 Current_fence_position.insert(0, 0)
 
-C_angle = Label(angleframe, text="Current Angle = ", font=("Arial", 12))
+C_angle = Label(angle_frame, text="Current Angle = ", font=("Arial", 12))
 C_angle.grid(row=3, column=0)
 
-C_angle_e = Entry(angleframe, width=7, borderwidth=2)
+C_angle_e = Entry(angle_frame, width=7, borderwidth=2)
 C_angle_e.grid(row=3, column=1)
 C_angle_e.insert(0, 0)
 
-C_blade_height = Label(heightframe, text="Current Height = ", font=("Arial", 12))
+C_blade_height = Label(height_frame, text="Current Height = ", font=("Arial", 12))
 C_blade_height.grid(row=3, column=0)
 
-C_height_e = Entry(heightframe, width=7, borderwidth=2, relief=SUNKEN)
+C_height_e = Entry(height_frame, width=7, borderwidth=2, relief=SUNKEN)
 C_height_e.grid(row=3, column=1)
 C_height_e.insert(0, 0)
 
@@ -194,9 +194,9 @@ def move_fence():
     GPIO.setmode(GPIO.BOARD)
     GPIO.setup(DIR_f, GPIO.OUT)
     GPIO.setup(STEP_f, GPIO.OUT)
-    GPIO.setup(fencezero, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(fenceendpos, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    # GPIO.setup(estop, GPIO.IN)
+    GPIO.setup(fence_zero, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(fence_end, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    # GPIO.setup(emergency_stop, GPIO.IN)
 
     if float(Startposition) < float(new_position):
         dis_to_move = float(new_position) - float(Startposition)
@@ -204,7 +204,7 @@ def move_fence():
         move_fence_steps = int(stp_per_inch_f * float(dis_to_move))
 
         for steps in range(move_fence_steps):
-            if GPIO.input(fenceendpos) == True:
+            if GPIO.input(fence_end) == True:
                 Current_fence_position.delete(0, END)
                 Current_fence_position.insert(0, str(MAX_f))
                 break
@@ -221,7 +221,7 @@ def move_fence():
 
         move_fence_steps = int(stp_per_inch_f * float(dis_to_move))
         for steps in range(move_fence_steps):
-            if GPIO.input(fencezero) == True:
+            if GPIO.input(fence_zero) == True:
                 Current_fence_position.delete(0, END)
                 Current_fence_position.insert(0, str(MIN_f))
                 break
@@ -250,8 +250,8 @@ def change_angle():
     GPIO.setmode(GPIO.BOARD)
     GPIO.setup(DIR_a, GPIO.OUT)
     GPIO.setup(STEP_a, GPIO.OUT)
-    GPIO.setup(angle0, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(angle45, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(blade_angle_0, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(blade_angle_45, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
     if float(Startposition) < float(new_position):
         dis_to_move = float(new_position) - float(Startposition)
@@ -259,7 +259,7 @@ def change_angle():
         move_angle_steps = int(stp_per_inch_a * float(dis_to_move))
 
         for steps in range(move_angle_steps):
-            if GPIO.input(angle45) == True:
+            if GPIO.input(blade_angle_45) == True:
                 C_angle_e.delete(0, END)
                 C_angle_e.insert(0, str(MIN_a))
                 break
@@ -276,7 +276,7 @@ def change_angle():
 
         move_angle_steps = int(stp_per_inch_a * float(dis_to_move))
         for steps in range(move_angle_steps):
-            if GPIO.input(angle0) == True:
+            if GPIO.input(blade_angle_0) == True:
                 C_angle_e.delete(0, END)
                 C_angle_e.insert(0, str(MAX_a))
                 break
@@ -308,8 +308,8 @@ def move_blade():
     GPIO.setmode(GPIO.BOARD)
     GPIO.setup(DIR_h, GPIO.OUT)
     GPIO.setup(STEP_h, GPIO.OUT)
-    GPIO.setup(heightzero, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.setup(heightend, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(blade_height_zero, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(blade_height_end, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
     if float(Startposition) < float(new_position):
         dis_to_move = float(new_position) - float(Startposition)
@@ -317,7 +317,7 @@ def move_blade():
         move_height_steps = int(stp_per_inch_h * float(dis_to_move))
 
         for steps in range(move_height_steps):
-            if GPIO.input(heightend) == True:
+            if GPIO.input(blade_height_end) == True:
                 C_height_e.delete(0, END)
                 C_height_e.insert(0, str(MAX_h))
                 break
@@ -334,7 +334,7 @@ def move_blade():
 
         move_height_steps = int(stp_per_inch_h * float(dis_to_move))
         for steps in range(move_height_steps):
-            if GPIO.input(heightzero) == True:
+            if GPIO.input(blade_height_zero) == True:
                 C_height_e.delete(0, END)
                 C_height_e.insert(0, str(MIN_h))
                 break
@@ -450,55 +450,55 @@ def clear_height():
     height.delete(0, END)
 
 
-# Define Calulator Buttons
+# Define Calculator Buttons
 
-button_1 = Button(calframe, text="1", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(1))
-button_2 = Button(calframe, text="2", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(2))
-button_3 = Button(calframe, text="3", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(3))
-button_4 = Button(calframe, text="4", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(4))
-button_5 = Button(calframe, text="5", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(5))
-button_6 = Button(calframe, text="6", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(6))
-button_7 = Button(calframe, text="7", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(7))
-button_8 = Button(calframe, text="8", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(8))
-button_9 = Button(calframe, text="9", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(9))
-button_0 = Button(calframe, text="0", padx=xpadnums, pady=ypadbutton, command=lambda: button_click(0))
-button_decimal = Button(calframe, text=".", padx=xpadbutton, pady=ypadbutton, command=lambda: button_click("."))
-button_add = Button(calframe, text="+", padx=xpadsymbols, pady=ypadbutton, command=button_add)
-button_equal = Button(calframe, text="=", padx=30, pady=ypadbutton, command=button_equal)
-button_clear = Button(calframe, text="Clear", padx=20, pady=ypadbutton, command=button_clear)
-button_subtract = Button(calframe, text="-", padx=xpadsymbols, pady=ypadbutton, command=button_subtract)
-button_multiply = Button(calframe, text="*", padx=xpadsymbols, pady=ypadbutton, command=button_multiply)
-button_divide = Button(calframe, text="/", padx=xpadsymbols, pady=ypadbutton, command=button_divide)
+button_1 = Button(calculator_frame, text="1", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(1))
+button_2 = Button(calculator_frame, text="2", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(2))
+button_3 = Button(calculator_frame, text="3", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(3))
+button_4 = Button(calculator_frame, text="4", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(4))
+button_5 = Button(calculator_frame, text="5", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(5))
+button_6 = Button(calculator_frame, text="6", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(6))
+button_7 = Button(calculator_frame, text="7", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(7))
+button_8 = Button(calculator_frame, text="8", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(8))
+button_9 = Button(calculator_frame, text="9", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(9))
+button_0 = Button(calculator_frame, text="0", padx=x_pad_nums, pady=y_pad_button, command=lambda: button_click(0))
+button_decimal = Button(calculator_frame, text=".", padx=x_pad_button, pady=y_pad_button, command=lambda: button_click("."))
+button_add = Button(calculator_frame, text="+", padx=x_pad_symbols, pady=y_pad_button, command=button_add)
+button_equal = Button(calculator_frame, text="=", padx=30, pady=y_pad_button, command=button_equal)
+button_clear = Button(calculator_frame, text="Clear", padx=20, pady=y_pad_button, command=button_clear)
+button_subtract = Button(calculator_frame, text="-", padx=x_pad_symbols, pady=y_pad_button, command=button_subtract)
+button_multiply = Button(calculator_frame, text="*", padx=x_pad_symbols, pady=y_pad_button, command=button_multiply)
+button_divide = Button(calculator_frame, text="/", padx=x_pad_symbols, pady=y_pad_button, command=button_divide)
 
-inch_to_mm = Button(calframe, text="Inch to mm", padx=xpadbutton, pady=ypadbutton, command=Inch_to_mm)
-mm_to_inch = Button(calframe, text="mm to Inch", padx=xpadbutton, pady=ypadbutton, command=mm_to_Inch)
+inch_to_mm = Button(calculator_frame, text="Inch to mm", padx=x_pad_button, pady=y_pad_button, command=Inch_to_mm)
+mm_to_inch = Button(calculator_frame, text="mm to Inch", padx=x_pad_button, pady=y_pad_button, command=mm_to_Inch)
 
 # Define Other Buttons
 
-button_movefence = Button(fenceframe, text="Move Fence", padx=xpadbutton, pady=ypadbutton, command=move_fence)
-button_change_angle = Button(angleframe, text="Change Angle", padx=xpadbutton, pady=ypadbutton, command=change_angle)
-button_moveblade = Button(heightframe, text="Move blade", padx=xpadbutton, pady=ypadbutton, command=move_blade)
+button_movefence = Button(fence_frame, text="Move Fence", padx=x_pad_button, pady=y_pad_button, command=move_fence)
+button_change_angle = Button(angle_frame, text="Change Angle", padx=x_pad_button, pady=y_pad_button, command=change_angle)
+button_moveblade = Button(height_frame, text="Move blade", padx=x_pad_button, pady=y_pad_button, command=move_blade)
 
-button_change_angle_45 = Button(angleframe, text="Go To 45", padx=xpadbutton, pady=ypadbutton, command=shortcut_a45)
-button_moveblade_0 = Button(heightframe, text="Go To 0", padx=xpadbutton, pady=ypadbutton, command=shortcut_h0)
-button_change_angle_0 = Button(angleframe, text="Go To 0", padx=xpadbutton, pady=ypadbutton, command=shortcut_a0)
-button_moveblade_1 = Button(heightframe, text="Go To 1.0", padx=xpadbutton, pady=ypadbutton, command=shortcut_h1)
+button_change_angle_45 = Button(angle_frame, text="Go To 45", padx=x_pad_button, pady=y_pad_button, command=shortcut_a45)
+button_moveblade_0 = Button(height_frame, text="Go To 0", padx=x_pad_button, pady=y_pad_button, command=shortcut_h0)
+button_change_angle_0 = Button(angle_frame, text="Go To 0", padx=x_pad_button, pady=y_pad_button, command=shortcut_a0)
+button_moveblade_1 = Button(height_frame, text="Go To 1.0", padx=x_pad_button, pady=y_pad_button, command=shortcut_h1)
 
-cal_to_fen_but = Button(fenceframe, text="Grab number", padx=xpadbutton, pady=ypadbutton, command=move_cal_to_fence)
-cal_to_ang_but = Button(angleframe, text="Grab number", padx=xpadbutton, pady=ypadbutton, command=move_cal_to_angle)
-cal_to_height_but = Button(heightframe, text="Grab number", padx=xpadbutton, pady=ypadbutton,
+cal_to_fen_but = Button(fence_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button, command=move_cal_to_fence)
+cal_to_ang_but = Button(angle_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button, command=move_cal_to_angle)
+cal_to_height_but = Button(height_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button,
                            command=move_cal_to_height)
 
-cal_to_fen_but_reset = Button(fenceframe, text="Grab number", padx=xpadbutton, pady=ypadbutton,
+cal_to_fen_but_reset = Button(fence_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button,
                               command=move_cal_to_fence_reset)
-cal_to_ang_but_reset = Button(angleframe, text="Grab number", padx=xpadbutton, pady=ypadbutton,
+cal_to_ang_but_reset = Button(angle_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button,
                               command=move_cal_to_angle_reset)
-cal_to_height_but_reset = Button(heightframe, text="Grab number", padx=xpadbutton, pady=ypadbutton,
+cal_to_height_but_reset = Button(height_frame, text="Grab number", padx=x_pad_button, pady=y_pad_button,
                                  command=move_cal_to_height_reset)
 
-clear_fen_but = Button(fenceframe, text="Clear", padx=xpadbutton, pady=ypadbutton, command=clear_fen)
-clear_ang_but = Button(angleframe, text="Clear", padx=xpadbutton, pady=ypadbutton, command=clear_ang)
-clear_height_but = Button(heightframe, text="Clear", padx=xpadbutton, pady=ypadbutton, command=clear_height)
+clear_fen_but = Button(fence_frame, text="Clear", padx=x_pad_button, pady=y_pad_button, command=clear_fen)
+clear_ang_but = Button(angle_frame, text="Clear", padx=x_pad_button, pady=y_pad_button, command=clear_ang)
+clear_height_but = Button(height_frame, text="Clear", padx=x_pad_button, pady=y_pad_button, command=clear_height)
 
 # Put the buttons on the screen
 
